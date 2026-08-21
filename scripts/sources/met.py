@@ -2,8 +2,9 @@
 
 The Met's API costs one request per object, which is exactly the shape of source the
 CDN exists for: on the device it made the grid wait, here it happens once a night in
-a thread pool and arrives as rows in a file. Object ids come from `/search`, and the
-per-object fetch is what carries `isPublicDomain`.
+a thread pool and arrives as rows in a file. Object ids come from the department
+listings and a handful of seed searches; the per-object fetch is what carries
+`isPublicDomain` and tells us whether there is a usable image at all.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from ..common import LK_CC0_PER_ASSET, LK_RESERVED, Http, asset, clean, http_url
 BASE = "https://collectionapi.metmuseum.org/public/collection/v1"
 PROVIDER = "metmuseum"  # must match ProviderIds.MET_MUSEUM — asset ids embed it
 
-WORKERS = 10
+WORKERS = 8
 PER_SEED = 120
 
 SEEDS = [
@@ -27,10 +28,21 @@ SEEDS = [
     "greek vase", "roman", "medieval", "renaissance", "art nouveau",
 ]
 
-# The Met's search is keyword-driven and its keywords are uneven, so seeds alone leave
-# whole wings unrepresented. Walking the departments as well is what turns a thin,
-# lopsided sample into something that looks like a collection.
+# The Met's search is keyword-driven and its keywords are uneven: thirty seeds returned
+# forty to ninety ids each and almost all of them the *same* ids — twenty-four of the
+# thirty added nothing at all, and the whole seed pass yielded 175 unique objects.
+#
+# So departments are walked through `/objects?departmentIds=N` instead, which lists every
+# object in a wing rather than guessing at keywords. Note this is the listing endpoint,
+# not search: `/search?q=*&departmentId=N` looks like it should do the same thing and
+# returns zero ids for nineteen of the twenty-one departments, because `*` is matched
+# literally.
 DEPARTMENTS = list(range(1, 22))
+
+# Sampled evenly across each department rather than taken from the front — object ids
+# run in accession order, so the first N of a wing are all from the same era and often
+# the same donation.
+PER_DEPARTMENT = 130
 
 
 def _classify(classification: str | None, object_name: str | None) -> str:
@@ -123,26 +135,33 @@ def fetch(http: Http) -> list[dict]:
         )
 
     for department in DEPARTMENTS:
-        # `q` is required even when the department is doing the selecting; `*` is the
-        # match-anything the API documents for exactly this case.
-        _collect(
-            http,
-            f"department {department}",
-            {
-                "q": "*",
-                "hasImages": "true",
-                "isPublicDomain": "true",
-                "departmentId": department,
-            },
-            wanted,
-            seen,
-        )
+        try:
+            data = http.get_json(f"{BASE}/objects", {"departmentIds": department})
+        except Exception as e:  # noqa: BLE001
+            log(f"  [met] department {department}: {e}")
+            continue
+
+        ids = [i for i in (data.get("objectIDs") or []) if isinstance(i, int)]
+        if not ids:
+            log(f"  [met] department {department}: empty")
+            continue
+
+        step = max(1, len(ids) // PER_DEPARTMENT)
+        sampled = ids[::step][:PER_DEPARTMENT]
+
+        added = 0
+        for object_id in sampled:
+            if object_id not in seen:
+                seen.add(object_id)
+                wanted.append(object_id)
+                added += 1
+        log(f"  [met] department {department}: {len(ids)} objects, sampled {added} new")
 
     log(f"  [met] fetching {len(wanted)} objects with {WORKERS} workers")
 
     # Each worker gets its own session: requests.Session is not thread-safe, and the
     # shared politeness delay would otherwise serialise the pool anyway.
-    pools = [Http(delay=0.05) for _ in range(WORKERS)]
+    pools = [Http(delay=0.15) for _ in range(WORKERS)]
 
     def job(indexed):
         position, object_id = indexed
