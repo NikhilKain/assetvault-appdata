@@ -80,6 +80,7 @@ LK_CC0_PROVIDER = "cc0_provider"  # whole catalogue is CC0 (Poly Haven)
 LK_NASA = "nasa"                  # NASA media guidelines — not a PD dedication
 LK_RESERVED = "reserved"          # source says rights reserved; app shows unverified
 LK_OFL = "ofl"                    # SIL Open Font Licence
+LK_GOOGLE_FONTS = "google_fonts"  # open source, but the API won't say which of the three
 
 
 def clean(value: Any) -> str | None:
@@ -205,11 +206,19 @@ def asset(
     if rank:
         record["r"] = round(float(rank), 3)
 
-    # Nothing to show and nothing to play is nothing to put in a grid.
-    if not record.get("th") and not record.get("pv") and not record.get("ap"):
-        return None
+    # Nothing to show and nothing to play is nothing to put in a grid — except for the
+    # kinds the app draws itself. A font tile *is* its name set in the typeface and an
+    # audio tile is a waveform, so those are complete records without an image.
+    if type not in SELF_RENDERING_TYPES:
+        if not record.get("th") and not record.get("pv") and not record.get("ap"):
+            return None
 
     return record
+
+
+# Asset types whose tile is drawn from metadata rather than from a picture. Mirrors the
+# branches in the app's AssetTile.
+SELF_RENDERING_TYPES = {"FONT", "UI_KIT", "AUDIO", "MUSIC"}
 
 
 def write_json(path: str, payload: Any) -> int:

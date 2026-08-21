@@ -15,14 +15,22 @@ from ..common import LK_CC0_PER_ASSET, LK_RESERVED, Http, asset, clean, http_url
 BASE = "https://collectionapi.metmuseum.org/public/collection/v1"
 PROVIDER = "metmuseum"  # must match ProviderIds.MET_MUSEUM — asset ids embed it
 
-WORKERS = 6
-PER_SEED = 90
+WORKERS = 10
+PER_SEED = 120
 
 SEEDS = [
     "masterpiece", "landscape painting", "portrait", "japanese print",
     "textile pattern", "ceramic", "drawing", "photograph", "sculpture",
     "islamic art", "egyptian", "impressionism", "still life", "armor",
+    "botanical", "bird", "flower", "map", "calligraphy", "tapestry",
+    "mosaic", "stained glass", "engraving", "watercolor", "gold",
+    "greek vase", "roman", "medieval", "renaissance", "art nouveau",
 ]
+
+# The Met's search is keyword-driven and its keywords are uneven, so seeds alone leave
+# whole wings unrepresented. Walking the departments as well is what turns a thin,
+# lopsided sample into something that looks like a collection.
+DEPARTMENTS = list(range(1, 22))
 
 
 def _classify(classification: str | None, object_name: str | None) -> str:
@@ -84,25 +92,51 @@ def _fetch_object(http: Http, object_id: int, rank: float) -> dict | None:
     )
 
 
+def _collect(http: Http, label: str, params: dict, wanted: list[int], seen: set[int]) -> None:
+    try:
+        data = http.get_json(f"{BASE}/search", params)
+    except Exception as e:  # noqa: BLE001
+        log(f"  [met] {label}: {e}")
+        return
+
+    ids = [i for i in (data.get("objectIDs") or []) if isinstance(i, int)][:PER_SEED]
+    added = 0
+    for object_id in ids:
+        if object_id not in seen:
+            seen.add(object_id)
+            wanted.append(object_id)
+            added += 1
+    log(f"  [met] {label}: {len(ids)} ids, {added} new")
+
+
 def fetch(http: Http) -> list[dict]:
     wanted: list[int] = []
     seen: set[int] = set()
 
     for seed in SEEDS:
-        try:
-            data = http.get_json(
-                f"{BASE}/search", {"q": seed, "hasImages": "true", "isPublicDomain": "true"}
-            )
-        except Exception as e:  # noqa: BLE001
-            log(f"  [met] search '{seed}': {e}")
-            continue
+        _collect(
+            http,
+            f"search '{seed}'",
+            {"q": seed, "hasImages": "true", "isPublicDomain": "true"},
+            wanted,
+            seen,
+        )
 
-        ids = [i for i in (data.get("objectIDs") or []) if isinstance(i, int)][:PER_SEED]
-        for object_id in ids:
-            if object_id not in seen:
-                seen.add(object_id)
-                wanted.append(object_id)
-        log(f"  [met] search '{seed}': {len(ids)} ids")
+    for department in DEPARTMENTS:
+        # `q` is required even when the department is doing the selecting; `*` is the
+        # match-anything the API documents for exactly this case.
+        _collect(
+            http,
+            f"department {department}",
+            {
+                "q": "*",
+                "hasImages": "true",
+                "isPublicDomain": "true",
+                "departmentId": department,
+            },
+            wanted,
+            seen,
+        )
 
     log(f"  [met] fetching {len(wanted)} objects with {WORKERS} workers")
 

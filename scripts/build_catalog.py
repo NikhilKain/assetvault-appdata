@@ -30,7 +30,16 @@ from .common import (
     log,
     write_json,
 )
-from .sources import artic, iconify, met, nasa, openverse, polyhaven, wikimedia
+from .sources import (
+    artic,
+    googlefonts,
+    iconify,
+    met,
+    nasa,
+    openverse,
+    polyhaven,
+    wikimedia,
+)
 
 CATALOG_VERSION = 1
 
@@ -44,12 +53,15 @@ SOURCES = [
     ("artic", artic.fetch),
     ("met", met.fetch),
     ("nasa", nasa.fetch),
+    ("googlefonts", googlefonts.fetch),
 ]
 
-# Mirrors AssetType.browsable in the app, in the same order.
+# Mirrors AssetType.browsable in the app, in the same order. UI_KIT and VIDEO are
+# absent from both: no source AssetVault has carries either, so a file would only ever
+# be written for them if a source started reporting a type nothing asked for.
 BROWSABLE = [
     "ICON", "SVG", "ILLUSTRATION", "PHOTO", "WALLPAPER", "TEXTURE",
-    "MODEL_3D", "FONT", "AUDIO", "MUSIC", "UI_KIT", "PATTERN", "MOCKUP", "VIDEO",
+    "MODEL_3D", "FONT", "AUDIO", "MUSIC", "PATTERN", "MOCKUP",
 ]
 
 HERO_SIZE = 10
@@ -94,6 +106,13 @@ RAILS = [
         "subtitle": "High-resolution backdrops, phone and desktop",
         "types": ["WALLPAPER"],
         "seeAllType": "WALLPAPER",
+    },
+    {
+        "id": "fonts",
+        "title": "Typefaces",
+        "subtitle": "Open fonts you can embed and ship",
+        "types": ["FONT"],
+        "seeAllType": "FONT",
     },
 ]
 

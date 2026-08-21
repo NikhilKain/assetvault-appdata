@@ -77,15 +77,27 @@ always did — this repo carries metadata only.
 | Art Institute of Chicago | Open-access artwork | 12 pages of the collection |
 | The Met | Open-access artwork | 14 seed searches, objects fetched in a pool |
 | NASA | Space and mission imagery | 17 seed queries |
+| Google Fonts | ~1,800 open typefaces | One call, needs a key — see below |
 
 Every one is a documented public API used within its published limits, with a
 descriptive `User-Agent` and a contact URL, matching the rule the app itself keeps:
 nothing here scrapes rendered HTML, bypasses a paywall or login, ignores robots
 directives, or works around rate limiting.
 
-Sources needing a user-supplied key — Pexels, Pixabay, Unsplash, Freesound, Google
-Fonts — are deliberately absent. They stay live-only, configured per user in
-Settings › Sources, so no key of mine ends up serving everyone's traffic.
+### The one key
+
+Google Fonts is the exception, and it earns it: it is the *only* font source AssetVault
+has, it needs the user's own key, and it is off by default — so before this, a fresh
+install tapping "Fonts" got nothing at all. Indexing it here means one key serves every
+install, and it never leaves the Action.
+
+Add a [Google Fonts Developer API key](https://developers.google.com/fonts/docs/developer_api)
+as a repository secret named `GOOGLE_FONTS_KEY`. Without it the source skips itself and
+the build still succeeds — everything else is keyless by design.
+
+The remaining keyed sources — Pexels, Pixabay, Unsplash, Freesound — stay live-only and
+per-user in Settings › Sources. Each of those has a keyless alternative already in the
+catalogue; fonts did not.
 
 ---
 
