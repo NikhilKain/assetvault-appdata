@@ -11,6 +11,11 @@ on:
         description: "Space-separated source names to build (blank = all). A partial build is NOT published."
         required: false
         default: ""
+      allow_collapse:
+        description: "Publish even if a source lost most of its assets. For a deliberate removal."
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -40,6 +45,7 @@ jobs:
           # Optional. Without it the Google Fonts source skips itself and the build
           # still succeeds — every other source is keyless by design.
           GOOGLE_FONTS_KEY: ${{ secrets.GOOGLE_FONTS_KEY }}
+          ALLOW_COLLAPSE: ${{ inputs.allow_collapse && '1' || '' }}
         run: python -m scripts.build_catalog ${{ inputs.sources }}
 
       - name: Summarise

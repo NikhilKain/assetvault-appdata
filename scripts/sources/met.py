@@ -16,7 +16,7 @@ from ..common import LK_CC0_PER_ASSET, LK_RESERVED, Http, asset, clean, http_url
 BASE = "https://collectionapi.metmuseum.org/public/collection/v1"
 PROVIDER = "metmuseum"  # must match ProviderIds.MET_MUSEUM — asset ids embed it
 
-WORKERS = 8
+WORKERS = 6
 PER_SEED = 120
 
 SEEDS = [
@@ -42,7 +42,7 @@ DEPARTMENTS = list(range(1, 22))
 # Sampled evenly across each department rather than taken from the front — object ids
 # run in accession order, so the first N of a wing are all from the same era and often
 # the same donation.
-PER_DEPARTMENT = 130
+PER_DEPARTMENT = 70
 
 
 def _classify(classification: str | None, object_name: str | None) -> str:
@@ -161,7 +161,7 @@ def fetch(http: Http) -> list[dict]:
 
     # Each worker gets its own session: requests.Session is not thread-safe, and the
     # shared politeness delay would otherwise serialise the pool anyway.
-    pools = [Http(delay=0.15) for _ in range(WORKERS)]
+    pools = [Http(delay=0.3) for _ in range(WORKERS)]
 
     def job(indexed):
         position, object_id = indexed
@@ -170,4 +170,9 @@ def fetch(http: Http) -> list[dict]:
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         results = list(pool.map(job, enumerate(wanted)))
 
-    return [r for r in results if r]
+    kept = [r for r in results if r]
+    # A dropped object is usually just one with no image, which is normal and common.
+    # A *lot* of them at once means the API started refusing us, and the difference
+    # matters: the first is a thin wing, the second is a build that should not ship.
+    log(f"  [met] kept {len(kept)} of {len(wanted)} ({len(wanted) - len(kept)} without images or refused)")
+    return kept

@@ -114,6 +114,20 @@ Output lands in `data/`, which is gitignored on `main` — it is published to th
 
 To rebuild on demand: **Actions → Build catalogue → Run workflow**.
 
+### Two guards on publishing
+
+Because the deploy force-pushes a fresh tree, a bad build doesn't degrade the catalogue,
+it *replaces* it. Both of these exist because both nearly happened:
+
+- **A filtered run is never published.** The `sources` input is for checking one fetcher;
+  publishing a one-source build would erase the other six.
+- **A run that loses most of a source fails instead of shipping.** Counts are compared
+  against the live `meta.json`, and a provider dropping below 40% of what it had aborts
+  the build. Two Met runs back to back tripped the museum's rate limiting, every object
+  fetch quietly returned nothing, and a run carrying 73 objects instead of 1,295
+  published straight over a working file. Pass **allow_collapse** when a drop is
+  deliberate.
+
 ---
 
 ## Adding a source

@@ -237,6 +237,45 @@ def build_home(records: list[dict]) -> dict:
     return {"hero": hero, "rails": rails}
 
 
+CDN_META = "https://nikhilkain.github.io/assetvault-appdata/data/meta.json"
+
+# A source keeping less than this share of what it had last time has not had a thin
+# night; something is wrong with it.
+COLLAPSE_RATIO = 0.4
+
+
+def collapsed_sources(http: Http, counts: Counter) -> list[str]:
+    """Sources that lost most of what they had in the published catalogue.
+
+    The deploy force-pushes a freshly built tree, so a bad build does not degrade the
+    catalogue — it *replaces* it. That happened: two Met runs back to back tripped the
+    museum's rate limiting, every object fetch quietly returned None, and a run that
+    should have carried 1,295 objects published 73 over a working file. Nothing failed
+    loudly enough to stop it, because a source being unreachable is a condition the
+    build is otherwise designed to shrug off.
+
+    Comparing against what is currently live is the cheapest way to tell "this source
+    had a quiet day" from "this source is broken". Set ALLOW_COLLAPSE=1 to publish
+    anyway, which is what a deliberate removal needs.
+    """
+    if os.environ.get("ALLOW_COLLAPSE") == "1":
+        log("ALLOW_COLLAPSE=1 — skipping the regression check")
+        return []
+
+    try:
+        previous = (http.get_json(CDN_META, tries=2) or {}).get("providers") or {}
+    except Exception as e:  # noqa: BLE001
+        log(f"no published catalogue to compare against ({e}) — skipping the check")
+        return []
+
+    collapsed = []
+    for provider, before in previous.items():
+        after = counts.get(provider, 0)
+        if before >= 50 and after < before * COLLAPSE_RATIO:
+            collapsed.append(f"{provider}: {before} → {after}")
+    return collapsed
+
+
 def main() -> int:
     started = dt.datetime.now(dt.timezone.utc)
     only = set(sys.argv[1:])
@@ -265,6 +304,20 @@ def main() -> int:
     log(f"\n{len(records)} assets after dedup (from {len(collected)})")
     for provider, count in by_provider.most_common():
         log(f"  {provider:<12} {count}")
+
+    # Only meaningful for a full build — a filtered one is *expected* to be missing
+    # sources, and the workflow refuses to publish it anyway.
+    if not only:
+        collapsed = collapsed_sources(http, by_provider)
+        if collapsed:
+            print(
+                "refusing to publish — these sources collapsed against the live "
+                "catalogue:\n  " + "\n  ".join(collapsed) +
+                "\nRe-run once the source recovers, or set ALLOW_COLLAPSE=1 if the "
+                "drop is deliberate.",
+                file=sys.stderr,
+            )
+            return 1
 
     built_at = started.strftime("%Y-%m-%dT%H:%M:%SZ")
     header = {"version": CATALOG_VERSION, "builtAt": built_at}
