@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       sources:
-        description: "Space-separated source names to build (blank = all)"
+        description: "Space-separated source names to build (blank = all). A partial build is NOT published."
         required: false
         default: ""
 
@@ -59,7 +59,11 @@ jobs:
           PY
           cat summary.md >> $GITHUB_STEP_SUMMARY
 
+      # A partial build produces a partial catalogue, and the deploy below force-pushes
+      # a freshly built tree — so publishing one would erase every source it did not
+      # build. The `sources` input exists for checking one fetcher, not for shipping.
       - name: Publish to gh-pages
+        if: inputs.sources == ''
         run: |
           # The deploy tree is built from scratch and force-pushed, so gh-pages only
           # ever holds what this run produced — no stale files accumulate, and the
