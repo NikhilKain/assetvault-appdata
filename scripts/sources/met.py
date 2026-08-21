@@ -1,0 +1,120 @@
+"""The Metropolitan Museum of Art.
+
+The Met's API costs one request per object, which is exactly the shape of source the
+CDN exists for: on the device it made the grid wait, here it happens once a night in
+a thread pool and arrives as rows in a file. Object ids come from `/search`, and the
+per-object fetch is what carries `isPublicDomain`.
+"""
+
+from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor
+
+from ..common import LK_CC0_PER_ASSET, LK_RESERVED, Http, asset, clean, http_url, log
+
+BASE = "https://collectionapi.metmuseum.org/public/collection/v1"
+PROVIDER = "metmuseum"  # must match ProviderIds.MET_MUSEUM — asset ids embed it
+
+WORKERS = 6
+PER_SEED = 90
+
+SEEDS = [
+    "masterpiece", "landscape painting", "portrait", "japanese print",
+    "textile pattern", "ceramic", "drawing", "photograph", "sculpture",
+    "islamic art", "egyptian", "impressionism", "still life", "armor",
+]
+
+
+def _classify(classification: str | None, object_name: str | None) -> str:
+    text = f"{classification or ''} {object_name or ''}".lower()
+    if "photograph" in text:
+        return "PHOTO"
+    if "textile" in text or "wallpaper" in text:
+        return "PATTERN"
+    return "ILLUSTRATION"
+
+
+def _fetch_object(http: Http, object_id: int, rank: float) -> dict | None:
+    try:
+        item = http.get_json(f"{BASE}/objects/{object_id}", tries=2)
+    except Exception:  # noqa: BLE001 — one missing object is not worth a log line
+        return None
+    if not isinstance(item, dict):
+        return None
+
+    title = clean(item.get("title"))
+    primary = http_url(item.get("primaryImage"))
+    small = http_url(item.get("primaryImageSmall"))
+    if not title or not (primary or small):
+        return None
+
+    public_domain = bool(item.get("isPublicDomain"))
+    artist = clean(item.get("artistDisplayName"))
+
+    tags = [t.get("term") for t in (item.get("tags") or []) if isinstance(t, dict)]
+    tags += [item.get("classification"), item.get("culture"), item.get("medium")]
+
+    return asset(
+        provider=PROVIDER,
+        provider_asset_id=str(object_id),
+        title=title,
+        type=_classify(item.get("classification"), item.get("objectName")),
+        thumbnail=small or primary,
+        preview=primary or small,
+        source_url=item.get("objectURL")
+        or f"https://www.metmuseum.org/art/collection/search/{object_id}",
+        direct_file=primary if public_domain else None,
+        file_format="JPG",
+        author=artist,
+        author_url=item.get("artistWikidata_URL"),
+        lk=LK_CC0_PER_ASSET if public_domain else LK_RESERVED,
+        tags=[t for t in tags if t],
+        description=" · ".join(
+            p for p in (
+                clean(item.get("objectDate")),
+                clean(item.get("medium")),
+                clean(item.get("department")),
+            ) if p
+        ) or None,
+        attribution=(
+            f"{title}{f' by {artist}' if artist else ''} — "
+            "The Metropolitan Museum of Art (CC0)"
+        ) if public_domain else None,
+        rank=(50 if public_domain else 0) + rank,
+    )
+
+
+def fetch(http: Http) -> list[dict]:
+    wanted: list[int] = []
+    seen: set[int] = set()
+
+    for seed in SEEDS:
+        try:
+            data = http.get_json(
+                f"{BASE}/search", {"q": seed, "hasImages": "true", "isPublicDomain": "true"}
+            )
+        except Exception as e:  # noqa: BLE001
+            log(f"  [met] search '{seed}': {e}")
+            continue
+
+        ids = [i for i in (data.get("objectIDs") or []) if isinstance(i, int)][:PER_SEED]
+        for object_id in ids:
+            if object_id not in seen:
+                seen.add(object_id)
+                wanted.append(object_id)
+        log(f"  [met] search '{seed}': {len(ids)} ids")
+
+    log(f"  [met] fetching {len(wanted)} objects with {WORKERS} workers")
+
+    # Each worker gets its own session: requests.Session is not thread-safe, and the
+    # shared politeness delay would otherwise serialise the pool anyway.
+    pools = [Http(delay=0.05) for _ in range(WORKERS)]
+
+    def job(indexed):
+        position, object_id = indexed
+        return _fetch_object(pools[position % WORKERS], object_id, max(0.0, 40 - position / 40))
+
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        results = list(pool.map(job, enumerate(wanted)))
+
+    return [r for r in results if r]
