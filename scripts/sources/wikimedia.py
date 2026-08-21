@@ -99,8 +99,11 @@ def fetch(http: Http) -> list[dict]:
             extmetadata = info.get("extmetadata")
 
             file_title = (page.get("title") or "").removeprefix("File:")
+            # ObjectName is template output and often arrives wrapped in markup —
+            # `<div class="fn">…</div>` from the microformat templates especially.
+            # Untreated, that markup becomes the card title on the device.
             title = (
-                _meta(extmetadata, "ObjectName")
+                strip_html(_meta(extmetadata, "ObjectName"))
                 or clean(file_title.rsplit(".", 1)[0].replace("_", " "))
             )
             if not title:
