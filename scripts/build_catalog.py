@@ -97,7 +97,25 @@ RAILS = [
     },
 ]
 
-HERO_TYPES = {"PHOTO", "ILLUSTRATION", "WALLPAPER"}
+HERO_TYPES = {"WALLPAPER", "PHOTO"}
+
+
+def hero_worthy(record: dict) -> bool:
+    """Whether a record can carry a full-bleed card at the top of the home screen.
+
+    The hero is one big landscape image and nothing else, so it is the one place where
+    a slow host or a portrait crop is immediately obvious. Requiring declared
+    dimensions and a landscape aspect is what keeps that card from being a letterboxed
+    museum artefact with a grey box where the photograph should be.
+    """
+    if record["y"] not in HERO_TYPES:
+        return False
+    if not record.get("th"):
+        return False
+    width, height = record.get("w"), record.get("h")
+    if not width or not height:
+        return False
+    return 1.2 <= width / height <= 2.4
 
 
 def likely_public_domain(record: dict) -> bool:
@@ -159,7 +177,7 @@ def build_home(records: list[dict]) -> dict:
     for record in records:
         by_type[record["y"]].append(record)
 
-    def pick(types, limit, *, public_domain_only=False, exclude=frozenset()):
+    def pick(types, limit, *, public_domain_only=False, exclude=frozenset(), where=None):
         pool: dict[str, list[dict]] = defaultdict(list)
         for asset_type in types:
             for record in by_type.get(asset_type, []):
@@ -167,10 +185,12 @@ def build_home(records: list[dict]) -> dict:
                     continue
                 if public_domain_only and not likely_public_domain(record):
                     continue
+                if where and not where(record):
+                    continue
                 pool[record["p"]].append(record)
         return interleave(pool)[:limit]
 
-    hero = pick(sorted(HERO_TYPES), HERO_SIZE)
+    hero = pick(sorted(HERO_TYPES), HERO_SIZE, where=hero_worthy)
     used = {record["i"] for record in hero}
 
     rails = []
