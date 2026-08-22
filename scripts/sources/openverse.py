@@ -17,7 +17,7 @@ BASE = "https://api.openverse.org/v1"
 PROVIDER = "openverse"
 
 PAGE_SIZE = 20
-PAGES_PER_SEED = 2
+PAGES_PER_SEED = 3
 
 IMAGE_SEEDS = [
     ("nature", "PHOTO"), ("mountains", "PHOTO"), ("ocean", "PHOTO"),
@@ -29,6 +29,15 @@ IMAGE_SEEDS = [
     ("minimal", "WALLPAPER"), ("texture", "TEXTURE"), ("wood texture", "TEXTURE"),
     ("stone wall", "TEXTURE"), ("fabric", "TEXTURE"), ("paper texture", "TEXTURE"),
     ("seamless pattern", "PATTERN"), ("geometric pattern", "PATTERN"),
+    ("marble", "TEXTURE"), ("concrete wall", "TEXTURE"), ("metal surface", "TEXTURE"),
+    ("desert", "PHOTO"), ("snow", "PHOTO"), ("autumn", "PHOTO"), ("beach", "PHOTO"),
+    ("waterfall", "PHOTO"), ("bridge", "PHOTO"), ("interior design", "PHOTO"),
+    ("office", "PHOTO"), ("laptop", "PHOTO"), ("book", "PHOTO"), ("plant", "PHOTO"),
+    ("bicycle", "PHOTO"), ("train", "PHOTO"), ("market", "PHOTO"), ("festival", "PHOTO"),
+    ("portrait studio", "PHOTO"), ("hands", "PHOTO"), ("silhouette", "PHOTO"),
+    ("neon", "WALLPAPER"), ("aurora", "WALLPAPER"), ("galaxy", "WALLPAPER"),
+    ("art deco", "PATTERN"), ("mandala", "PATTERN"), ("tile pattern", "PATTERN"),
+    ("sketch", "ILLUSTRATION"), ("engraving", "ILLUSTRATION"), ("comic", "ILLUSTRATION"),
     ("floral pattern", "PATTERN"), ("botanical illustration", "ILLUSTRATION"),
     ("vintage illustration", "ILLUSTRATION"), ("map", "ILLUSTRATION"),
     ("diagram", "ILLUSTRATION"), ("poster", "ILLUSTRATION"),

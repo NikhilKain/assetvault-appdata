@@ -17,6 +17,11 @@ PROVIDER = "nasa"
 PAGE_SIZE = 60
 
 SEEDS = [
+    ("supernova", "WALLPAPER"), ("black hole", "WALLPAPER"), ("comet", "WALLPAPER"),
+    ("star cluster", "WALLPAPER"), ("milky way", "WALLPAPER"), ("venus", "WALLPAPER"),
+    ("mercury planet", "WALLPAPER"), ("neptune", "WALLPAPER"), ("uranus", "WALLPAPER"),
+    ("pluto", "WALLPAPER"), ("asteroid", "PHOTO"), ("rover", "PHOTO"),
+    ("satellite", "PHOTO"), ("rocket engine", "PHOTO"), ("spacewalk", "PHOTO"),
     ("nebula", "WALLPAPER"), ("galaxy", "WALLPAPER"), ("earth from space", "WALLPAPER"),
     ("mars surface", "PHOTO"), ("apollo", "PHOTO"), ("launch", "PHOTO"),
     ("astronaut", "PHOTO"), ("saturn", "WALLPAPER"), ("jupiter", "WALLPAPER"),

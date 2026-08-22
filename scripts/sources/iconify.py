@@ -17,15 +17,20 @@ from ..common import LK_RAW, Http, asset, log
 BASE = "https://api.iconify.design"
 PROVIDER = "iconify"
 
-# The same sets the live provider features, in the same order. Keeping the two lists
-# aligned means the CDN home feed and a cold live feed show the same icons.
+# The first eighteen are the sets the live provider features, in its order, so the CDN
+# home feed and a cold live feed open on the same icons. The rest are here purely for
+# depth — testers said the library felt small, and icons are the cheapest thing in the
+# catalogue to have more of: a record is a name and a URL, and nothing is fetched per
+# icon.
 SETS = [
     "lucide", "ph", "solar", "tabler", "mdi", "material-symbols",
     "simple-icons", "logos", "hugeicons", "iconoir", "fluent", "carbon",
     "ri", "bi", "heroicons", "majesticons", "gravity-ui", "streamline",
+    "mingcute", "akar-icons", "octicon", "line-md", "pixelarticons", "teenyicons",
+    "basil", "uil", "gg", "bx", "clarity", "mynaui",
 ]
 
-ICONS_PER_SET = 260
+ICONS_PER_SET = 420
 
 
 def _title(name: str) -> str:

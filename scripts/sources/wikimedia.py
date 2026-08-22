@@ -18,6 +18,18 @@ PROVIDER = "wikimedia"
 PAGE_SIZE = 40
 
 SEEDS = [
+    ("aerial city", "PHOTO", "bitmap"), ("desert landscape", "PHOTO", "bitmap"),
+    ("waterfall", "PHOTO", "bitmap"), ("insect macro", "PHOTO", "bitmap"),
+    ("bird portrait", "PHOTO", "bitmap"), ("church interior", "PHOTO", "bitmap"),
+    ("bridge engineering", "PHOTO", "bitmap"), ("street market", "PHOTO", "bitmap"),
+    ("mineral specimen", "PHOTO", "bitmap"), ("microscopy", "PHOTO", "bitmap"),
+    ("art nouveau poster", "ILLUSTRATION", "bitmap"),
+    ("japanese woodblock", "ILLUSTRATION", "bitmap"),
+    ("anatomical drawing", "ILLUSTRATION", "bitmap"),
+    ("heraldry svg", "SVG", "drawing"), ("logo svg", "SVG", "drawing"),
+    ("technical drawing svg", "SVG", "drawing"), ("arrow svg", "SVG", "drawing"),
+    ("marble texture", "TEXTURE", "bitmap"), ("brick wall", "TEXTURE", "bitmap"),
+    ("tile ornament", "PATTERN", "drawing"),
     ("featured picture", "PHOTO", "bitmap"),
     ("quality image landscape", "PHOTO", "bitmap"),
     ("valued image", "PHOTO", "bitmap"),

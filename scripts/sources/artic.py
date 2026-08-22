@@ -19,7 +19,7 @@ FIELDS = (
 )
 
 PAGE_SIZE = 100
-PAGES = 12
+PAGES = 26
 
 
 def _classify(classification: str | None) -> str:
