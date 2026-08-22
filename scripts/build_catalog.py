@@ -237,43 +237,76 @@ def build_home(records: list[dict]) -> dict:
     return {"hero": hero, "rails": rails}
 
 
-CDN_META = "https://nikhilkain.github.io/assetvault-appdata/data/meta.json"
+CDN_BASE = "https://nikhilkain.github.io/assetvault-appdata"
+CDN_META = f"{CDN_BASE}/data/meta.json"
+CDN_INDEX = f"{CDN_BASE}/data/index.json"
 
 # A source keeping less than this share of what it had last time has not had a thin
 # night; something is wrong with it.
 COLLAPSE_RATIO = 0.4
 
 
-def collapsed_sources(http: Http, counts: Counter) -> list[str]:
-    """Sources that lost most of what they had in the published catalogue.
+def backfill_collapsed(http: Http, records: list[dict]) -> tuple[list[dict], list[str]]:
+    """Carries a collapsed source's rows forward from the published catalogue.
 
     The deploy force-pushes a freshly built tree, so a bad build does not degrade the
-    catalogue — it *replaces* it. That happened: two Met runs back to back tripped the
-    museum's rate limiting, every object fetch quietly returned None, and a run that
-    should have carried 1,295 objects published 73 over a working file. Nothing failed
-    loudly enough to stop it, because a source being unreachable is a condition the
-    build is otherwise designed to shrug off.
+    catalogue — it *replaces* it. The Met is the source this keeps happening to: it
+    costs one request per object, and when the museum starts rate-limiting us every
+    fetch quietly returns nothing. A run that should have carried 1,295 objects has
+    published 73 over a working file.
 
-    Comparing against what is currently live is the cheapest way to tell "this source
-    had a quiet day" from "this source is broken". Set ALLOW_COLLAPSE=1 to publish
-    anyway, which is what a deliberate removal needs.
+    Refusing to publish stopped that, but it was too blunt: the next run collected
+    24,349 assets across seven healthy sources and shipped none of them, because the
+    Met alone had a bad night. One flaky source should not hold the other six hostage.
+
+    So a source that collapsed keeps the rows it had last time. The catalogue gains
+    everything that worked and loses nothing that didn't — the Met's entries go stale
+    for a day rather than vanishing, which is the right trade for a museum collection
+    that changes about as often as museums do.
+
+    Returns the records to publish and a description of what was carried forward.
+    Falling back to refusing to publish is left to the caller, for the case where the
+    previous catalogue cannot be read either.
     """
     if os.environ.get("ALLOW_COLLAPSE") == "1":
         log("ALLOW_COLLAPSE=1 — skipping the regression check")
-        return []
+        return records, []
+
+    counts = Counter(r["p"] for r in records)
 
     try:
-        previous = (http.get_json(CDN_META, tries=2) or {}).get("providers") or {}
+        previous_counts = (http.get_json(CDN_META, tries=2) or {}).get("providers") or {}
     except Exception as e:  # noqa: BLE001
         log(f"no published catalogue to compare against ({e}) — skipping the check")
-        return []
+        return records, []
 
-    collapsed = []
-    for provider, before in previous.items():
-        after = counts.get(provider, 0)
-        if before >= 50 and after < before * COLLAPSE_RATIO:
-            collapsed.append(f"{provider}: {before} → {after}")
-    return collapsed
+    collapsed = [
+        provider
+        for provider, before in previous_counts.items()
+        if before >= 50 and counts.get(provider, 0) < before * COLLAPSE_RATIO
+    ]
+    if not collapsed:
+        return records, []
+
+    log(f"\ncollapsed this run: {', '.join(collapsed)} — carrying forward the published rows")
+
+    try:
+        published = (http.get_json(CDN_INDEX, tries=2) or {}).get("assets") or []
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(f"cannot read the published catalogue to backfill from: {e}") from e
+
+    notes = []
+    for provider in collapsed:
+        carried = [r for r in published if r.get("p") == provider]
+        if not carried:
+            raise RuntimeError(f"{provider} collapsed and has no published rows to carry forward")
+        # Drop whatever this run did manage for the source, so a thin fresh set and a
+        # full stale set cannot interleave into something that is neither.
+        records = [r for r in records if r.get("p") != provider]
+        records.extend(carried)
+        notes.append(f"{provider}: {counts.get(provider, 0)} fetched, {len(carried)} carried forward")
+
+    return records, notes
 
 
 def main() -> int:
@@ -308,16 +341,20 @@ def main() -> int:
     # Only meaningful for a full build — a filtered one is *expected* to be missing
     # sources, and the workflow refuses to publish it anyway.
     if not only:
-        collapsed = collapsed_sources(http, by_provider)
-        if collapsed:
-            print(
-                "refusing to publish — these sources collapsed against the live "
-                "catalogue:\n  " + "\n  ".join(collapsed) +
-                "\nRe-run once the source recovers, or set ALLOW_COLLAPSE=1 if the "
-                "drop is deliberate.",
-                file=sys.stderr,
-            )
+        try:
+            records, carried = backfill_collapsed(http, records)
+        except RuntimeError as e:
+            print(f"refusing to publish — {e}", file=sys.stderr)
             return 1
+
+        if carried:
+            for note in carried:
+                log(f"  {note}")
+            records = deduplicate(records)
+            records.sort(key=lambda r: -r.get("r", 0))
+            by_provider = Counter(r["p"] for r in records)
+            by_type = Counter(r["y"] for r in records)
+            log(f"\n{len(records)} assets after backfill")
 
     built_at = started.strftime("%Y-%m-%dT%H:%M:%SZ")
     header = {"version": CATALOG_VERSION, "builtAt": built_at}

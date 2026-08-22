@@ -42,7 +42,7 @@ DEPARTMENTS = list(range(1, 22))
 # Sampled evenly across each department rather than taken from the front — object ids
 # run in accession order, so the first N of a wing are all from the same era and often
 # the same donation.
-PER_DEPARTMENT = 70
+PER_DEPARTMENT = 45
 
 
 def _classify(classification: str | None, object_name: str | None) -> str:

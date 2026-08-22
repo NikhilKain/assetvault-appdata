@@ -30,7 +30,7 @@ night, and the phone does one conditional GET against a static host.
 | `data/meta.json` | Counts and a build timestamp | 1 KB |
 | `data/home.json` | The home feed — hero and rails, as whole records | 150 KB |
 | `data/type/<TYPE>.json` | One file per browsable category | 60–200 KB |
-| `data/index.json` | The whole catalogue, for offline search | 3–5 MB |
+| `data/index.json` | The whole catalogue, for offline search | ~18 MB (2.5 MB gzipped) |
 
 `home.json` is what the app fetches on launch, and it is small enough to arrive and
 parse before the first frame settles. `index.json` warms in the background afterwards
@@ -70,13 +70,13 @@ always did — this repo carries metadata only.
 
 | Source | What it contributes | How it's indexed |
 | --- | --- | --- |
-| Iconify | Icons and SVGs from the 18 most-used open sets | ~260 icons per set, in the sets' own order |
-| Openverse | Photos, illustrations, wallpapers, textures, audio | 45 seed queries, two pages each |
+| Iconify | Icons and SVGs from 30 open sets | ~420 icons per set, in the sets’ own order |
+| Openverse | Photos, illustrations, wallpapers, textures, audio | 64 seed queries, three pages each |
 | Poly Haven | HDRIs, PBR textures, 3D models | The entire library — three requests |
-| Wikimedia Commons | Photos, SVGs, historical work | 20 seed queries via the MediaWiki API |
-| Art Institute of Chicago | Open-access artwork | 12 pages of the collection |
-| The Met | Open-access artwork | 14 seed searches, objects fetched in a pool |
-| NASA | Space and mission imagery | 17 seed queries |
+| Wikimedia Commons | Photos, SVGs, historical work | 40 seed queries via the MediaWiki API |
+| Art Institute of Chicago | Open-access artwork | 26 pages of the collection |
+| The Met | Open-access artwork | All 21 departments sampled, objects fetched in a pool |
+| NASA | Space and mission imagery | 32 seed queries |
 | Google Fonts | ~1,800 open typefaces | One call, needs a key — see below |
 
 Every one is a documented public API used within its published limits, with a
@@ -121,11 +121,14 @@ it *replaces* it. Both of these exist because both nearly happened:
 
 - **A filtered run is never published.** The `sources` input is for checking one fetcher;
   publishing a one-source build would erase the other six.
-- **A run that loses most of a source fails instead of shipping.** Counts are compared
-  against the live `meta.json`, and a provider dropping below 40% of what it had aborts
-  the build. Two Met runs back to back tripped the museum's rate limiting, every object
-  fetch quietly returned nothing, and a run carrying 73 objects instead of 1,295
-  published straight over a working file. Pass **allow_collapse** when a drop is
+- **A run that loses most of a source carries its old rows forward.** Counts are compared
+  against the live `meta.json`, and a provider dropping below 40% of what it had has its
+  entries copied from the published `index.json` instead. The Met is why: it costs one
+  request per object, and when the museum starts rate-limiting every fetch quietly
+  returns nothing — one run published 73 objects over a working 1,295. Refusing to
+  publish stopped that but was too blunt, because a later run collected 24,349 assets
+  across seven healthy sources and shipped none of them over the same one bad source. A
+  stale wing for a day beats an empty one. Pass **allow_collapse** when a drop is
   deliberate.
 
 ---
